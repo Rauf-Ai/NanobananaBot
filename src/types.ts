@@ -26,6 +26,9 @@ export interface GenerationOptions {
   resolution: string;
   userId: number;
   generationId: number;
+  chatId: number;
+  language: string;
+  creditsUsed: number;
 }
 
 export interface NanoBananaResponse {

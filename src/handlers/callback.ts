@@ -3,8 +3,8 @@ import type { Bot } from 'grammy';
 import { buildAspectRatioKeyboard, buildResolutionKeyboard, buildConfirmGenerationKeyboard, buildAdminKeyboard } from '../keyboards/index.js';
 import { GENERATION_COST, STYLES } from '../utils/constants.js';
 import { getTotalCredits, getUserById, updateUserLanguage, deductCredits } from '../services/user.js';
-import { createGeneration, updateGenerationStatus } from '../services/history.js';
-import { generateImage } from '../services/image-generator.js';
+import { createGeneration } from '../services/history.js';
+import { addGenerationJob } from '../queues/generation.queue.js';
 import { showHistoryPage } from '../commands/history.js';
 import { settingsCommand } from '../commands/settings.js';
 import { balanceCommand } from '../commands/balance.js';
@@ -244,7 +244,7 @@ async function handleGenerationConfirm(ctx: BotContext) {
   const user = ctx.dbUser!;
   const { prompt, style, aspectRatio, resolution } = ctx.session;
 
-  if (!prompt || !style || !aspectRatio || !resolution) {
+  if (!prompt || !style || !aspectRatio || !resolution || !ctx.chat) {
     await ctx.answerCallbackQuery(ctx.t('error.general'));
     return;
   }
@@ -259,6 +259,14 @@ async function handleGenerationConfirm(ctx: BotContext) {
         available: totalCredits,
       }),
     );
+    await ctx.answerCallbackQuery();
+    return;
+  }
+
+  // Deduct credits immediately to prevent double-spending
+  const deducted = await deductCredits(user.id, cost);
+  if (!deducted) {
+    await ctx.editMessageText(ctx.t('generate.insufficient_credits', { required: cost, available: totalCredits }));
     await ctx.answerCallbackQuery();
     return;
   }
@@ -283,22 +291,20 @@ async function handleGenerationConfirm(ctx: BotContext) {
     creditsUsed: cost,
   });
 
-  try {
-    const imageUrl = await generateImage({ prompt, style, aspectRatio, resolution });
+  // Dispatch to BullMQ queue — returns immediately, worker processes in background
+  await addGenerationJob({
+    prompt,
+    style,
+    aspectRatio,
+    resolution,
+    userId: user.id,
+    generationId: generation.id,
+    chatId: ctx.chat.id,
+    language: user.language,
+    creditsUsed: cost,
+  });
 
-    await updateGenerationStatus(generation.id, 'COMPLETED', { imageUrl });
-    await deductCredits(user.id, cost);
-
-    await ctx.replyWithPhoto(imageUrl, {
-      caption: ctx.t('generate.success', { prompt: truncate(prompt, 100), credits: cost }),
-    });
-  } catch (error) {
-    await updateGenerationStatus(generation.id, 'FAILED', {
-      errorMessage: error instanceof Error ? error.message : String(error),
-    });
-    await ctx.reply(ctx.t('generate.failed'));
-    logger.error('Generation failed', { error, generationId: generation.id });
-  }
+  logger.info('Generation job queued', { generationId: generation.id, userId: user.id });
 }
 
 async function handleRegenerate(ctx: BotContext, generationId: number) {
