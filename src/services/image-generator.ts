@@ -1,28 +1,47 @@
 import { config } from '../config.js';
 import { logger } from '../utils/logger.js';
-import { sleep } from '../utils/helpers.js';
-import { GENERATION_POLL_INTERVAL_MS, GENERATION_MAX_POLLS } from '../utils/constants.js';
 
 interface GenerateRequest {
   prompt: string;
-  aspect_ratio: string;
+  num: number;
+  model: string;
+  image_size: string;
+}
+
+interface ApiResponse {
+  code: number;
+  message: string;
+  data: {
+    url: string;
+  } | null;
+}
+
+export async function generateImage(options: {
+  prompt: string;
+  style: string;
+  aspectRatio: string;
   resolution: string;
-}
+}): Promise<string> {
+  const fullPrompt =
+    options.style && options.style !== 'none'
+      ? `style: ${options.style}. ${options.prompt}`
+      : options.prompt;
 
-interface GenerateResponse {
-  task_id: string;
-  status?: string;
-}
+  const imageSize = options.aspectRatio || '1:1';
 
-interface StatusResponse {
-  task_id: string;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
-  image_url?: string;
-  error?: string;
-}
+  const request: GenerateRequest = {
+    prompt: fullPrompt,
+    num: 1,
+    model: config.nanoBanana.model,
+    image_size: imageSize,
+  };
 
-export async function submitGeneration(request: GenerateRequest): Promise<string> {
-  const response = await fetch(`${config.nanoBanana.apiUrl}/generate`, {
+  logger.info('Submitting generation request', {
+    prompt: fullPrompt.substring(0, 100),
+    imageSize,
+  });
+
+  const response = await fetch(`${config.nanoBanana.apiUrl}/v1/images/generate`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.nanoBanana.apiKey}`,
@@ -33,61 +52,17 @@ export async function submitGeneration(request: GenerateRequest): Promise<string
 
   if (!response.ok) {
     const errorText = await response.text();
+    logger.error('Nano Banana API HTTP error', { status: response.status, errorText });
     throw new Error(`Nano Banana API error: ${response.status} ${errorText}`);
   }
 
-  const data = (await response.json()) as GenerateResponse;
-  return data.task_id;
-}
+  const data = (await response.json()) as ApiResponse;
 
-export async function getGenerationStatus(taskId: string): Promise<StatusResponse> {
-  const response = await fetch(
-    `${config.nanoBanana.apiUrl}/status?task_id=${encodeURIComponent(taskId)}`,
-    {
-      headers: {
-        Authorization: `Bearer ${config.nanoBanana.apiKey}`,
-      },
-    },
-  );
-
-  if (!response.ok) {
-    throw new Error(`Status API error: ${response.status}`);
+  if (data.code !== 0 || !data.data?.url) {
+    logger.error('Nano Banana API returned error', { code: data.code, message: data.message });
+    throw new Error(`Generation failed: ${data.message || 'Unknown error'}`);
   }
 
-  return response.json() as Promise<StatusResponse>;
-}
-
-export async function generateImage(options: {
-  prompt: string;
-  style: string;
-  aspectRatio: string;
-  resolution: string;
-}): Promise<string> {
-  const fullPrompt = `style: ${options.style}. ${options.prompt}`;
-
-  const taskId = await submitGeneration({
-    prompt: fullPrompt,
-    aspect_ratio: options.aspectRatio,
-    resolution: options.resolution,
-  });
-
-  logger.info('Generation task submitted', { taskId });
-
-  // Poll for completion
-  for (let i = 0; i < GENERATION_MAX_POLLS; i++) {
-    await sleep(GENERATION_POLL_INTERVAL_MS);
-
-    const status = await getGenerationStatus(taskId);
-
-    if (status.status === 'completed' && status.image_url) {
-      logger.info('Generation completed', { taskId, imageUrl: status.image_url });
-      return status.image_url;
-    }
-
-    if (status.status === 'failed') {
-      throw new Error(status.error ?? 'Generation failed');
-    }
-  }
-
-  throw new Error('Generation timed out');
+  logger.info('Generation completed', { imageUrl: data.data.url });
+  return data.data.url;
 }

@@ -29,10 +29,11 @@ export interface GenerationOptions {
 }
 
 export interface NanoBananaResponse {
-  task_id: string;
-  status: string;
-  image_url?: string;
-  error?: string;
+  code: number;
+  message: string;
+  data: {
+    url: string;
+  } | null;
 }
 
 export interface CreditPack {

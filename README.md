@@ -85,7 +85,8 @@ docker-compose logs -f app
 | `BOT_TOKEN` | Токен Telegram бота от BotFather | `123456789:AABBcc...` |
 | `ADMIN_TELEGRAM_IDS` | Telegram ID администраторов (через запятую) | `123456789,987654321` |
 | `NANO_BANANA_API_KEY` | API ключ Nano Banana | `nb_...` |
-| `NANO_BANANA_API_URL` | URL Nano Banana API | `https://banana2api.com/api` |
+| `NANO_BANANA_API_URL` | URL Nano Banana API | `https://api.nanobananaapi.dev` |
+| `NANO_BANANA_MODEL` | Модель генерации изображений | `gemini-3-pro-image-preview` |
 | `DATABASE_URL` | Строка подключения к PostgreSQL | `postgresql://picgen:pass@postgres:5432/picgen` |
 | `REDIS_URL` | URL подключения к Redis | `redis://redis:6379` |
 | `PAYMENT_PROVIDER_TOKEN` | Токен провайдера ЮKassa | `381764628:TEST:...` |
@@ -97,7 +98,7 @@ docker-compose logs -f app
 
 ## Получение Nano Banana API ключа
 
-1. Перейдите на [banana2api.com](https://banana2api.com)
+1. Перейдите на [api.nanobananaapi.dev](https://api.nanobananaapi.dev)
 2. Зарегистрируйтесь или войдите в аккаунт
 3. В личном кабинете получите API ключ
 4. Скопируйте ключ в `NANO_BANANA_API_KEY`

@@ -4,7 +4,8 @@ const envSchema = z.object({
   BOT_TOKEN: z.string().min(1, 'BOT_TOKEN is required'),
   ADMIN_TELEGRAM_IDS: z.string().default(''),
   NANO_BANANA_API_KEY: z.string().min(1, 'NANO_BANANA_API_KEY is required'),
-  NANO_BANANA_API_URL: z.string().url().default('https://banana2api.com/api'),
+  NANO_BANANA_API_URL: z.string().default('https://api.nanobananaapi.dev'),
+  NANO_BANANA_MODEL: z.string().default('gemini-3-pro-image-preview'),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   PAYMENT_PROVIDER_TOKEN: z.string().default(''),
@@ -29,6 +30,7 @@ export const config = {
   nanoBanana: {
     apiKey: parsed.data.NANO_BANANA_API_KEY,
     apiUrl: parsed.data.NANO_BANANA_API_URL,
+    model: parsed.data.NANO_BANANA_MODEL,
   },
   databaseUrl: parsed.data.DATABASE_URL,
   redisUrl: parsed.data.REDIS_URL,
